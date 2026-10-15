@@ -1,0 +1,93 @@
+name: Update SideStore Source
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Process Release & Update JSON
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_ASSETS: ${{ toJson(github.event.release.assets) }}
+        run: |
+          python3 -c '
+          import json, os, urllib.request, zipfile, plistlib, datetime
+
+          # 1. Locate the .ipa asset from the release
+          assets = json.loads(os.environ["RELEASE_ASSETS"])
+          ipa_asset = next((a for a in assets if a["name"].endswith(".ipa")), None)
+
+          if not ipa_asset:
+              print("No .ipa asset found in release. Skipping source update.")
+              exit(0)
+
+          download_url = ipa_asset["browser_download_url"]
+          file_size = ipa_asset["size"]
+          today_date = datetime.date.today().isoformat()
+
+          # 2. Download .ipa and extract the actual app version from Info.plist
+          ipa_filename = "app.ipa"
+          urllib.request.urlretrieve(download_url, ipa_filename)
+
+          version = None
+          with zipfile.ZipFile(ipa_filename, "r") as z:
+              for filename in z.namelist():
+                  if filename.startswith("Payload/") and filename.endswith(".app/Info.plist"):
+                      plist_data = z.read(filename)
+                      plist = plistlib.loads(plist_data)
+                      version = plist.get("CFBundleShortVersionString") or plist.get("CFBundleVersion")
+                      break
+
+          if not version:
+              print("Could not extract version from Info.plist, falling back to release tag.")
+              version = os.environ["RELEASE_TAG"].lstrip("v")
+
+          # 3. Load and update apps.json
+          json_path = "apps.json"
+          if os.path.exists(json_path):
+              with open(json_path, "r") as f:
+                  data = json.load(f)
+          else:
+              data = {}
+
+          if "apps" in data and len(data["apps"]) > 0:
+              app = data["apps"][0]
+              app["size"] = file_size
+              
+              version_entry = {
+                  "version": str(version),
+                  "date": today_date,
+                  "downloadURL": download_url,
+                  "size": file_size,
+                  "localizedDescription": f"Release {version} updated automatically.",
+                  "minOSVersion": "14.0"
+              }
+              
+              app["versions"] = [version_entry]
+
+          with open(json_path, "w") as f:
+              json.dump(data, f, indent=2)
+
+          print(f"Updated apps.json with version {version} and size {file_size} bytes.")
+          '
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.name "github-actions[bot]@users.noreply.github.com"
+          git add apps.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update apps.json for release ${{ github.event.release.tag_name }}" && git push)
