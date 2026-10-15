@@ -1,2 +1,2 @@
-# Evee-SpotiPw-Build-for-Sidestore-Source-Link
+# Speevy #
 Evee + SpotiPw Build hosted here for Sidestore Source-Link
