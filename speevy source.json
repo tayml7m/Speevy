@@ -11,6 +11,7 @@
       "localizedDescription": "A custom Spotify fork based on SpotiPW and EeveeSpotify, featuring a sleek Liquid Glass UI design for a modern and immersive listening experience. Enhanced with EeveeSpotify tweaks and QoL improvements.",
       "iconURL": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/1024px-Spotify_logo_without_text.svg.png",
       "tintColor": "1DB954",
+      "size": 82329600,
       "versions": [
         {
           "version": "0.51.0",
